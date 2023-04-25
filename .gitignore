@@ -1,0 +1,5 @@
+.env
+.idea
+docs
+tmp
+node_modules

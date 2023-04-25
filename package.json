@@ -1,0 +1,31 @@
+{
+  "name": "hilla-docs-gpt",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@pinecone-database/pinecone": "^0.0.12",
+    "asciidoctor": "^2.2.6",
+    "common-tags": "^1.8.2",
+    "dotenv": "^16.0.3",
+    "downdoc": "^1.0.0-stable",
+    "hnswlib-node": "^1.4.2",
+    "html-to-text": "^9.0.5",
+    "langchain": "^0.0.53",
+    "nanoid": "^4.0.2",
+    "openai": "^3.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.4"
+  }
+}
