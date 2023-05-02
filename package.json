@@ -21,6 +21,7 @@
     "downdoc": "^1.0.0-stable",
     "hnswlib-node": "^1.4.2",
     "html-to-text": "^9.0.5",
+    "jsdom": "^21.1.1",
     "langchain": "^0.0.53",
     "nanoid": "^4.0.2",
     "openai": "^3.2.1"

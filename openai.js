@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
-dotenv.config();
-import { codeBlock, oneLine } from 'common-tags';
 import { Configuration, OpenAIApi } from 'openai';
+
+dotenv.config();
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY
