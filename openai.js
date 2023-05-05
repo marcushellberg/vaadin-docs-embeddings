@@ -10,9 +10,15 @@ const configuration = new Configuration({
 const openai = new OpenAIApi(configuration);
 
 export async function getEmbeddings(texts) {
+  try {
+
   const response = await openai.createEmbedding({
     model: 'text-embedding-ada-002',
     input: texts
   });
   return response.data.data.map((item) => item.embedding);
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
 }

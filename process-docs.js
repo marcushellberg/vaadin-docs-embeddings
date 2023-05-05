@@ -17,17 +17,17 @@ const pinecone = await getOrCreatePineconeIndex();
 
 const asciidoctor = new Processor();
 
-async function createAndSaveEmbeddings(blocks, path, namespace) {
-
+async function createAndSaveEmbeddings(blocks, filePath, namespace) {
   // OpenAI suggests removing newlines for better performance when creating embeddings.
   // Don't remove them from the source.
   const withoutNewlines = blocks.map(block => block.replace(/\n/g, ' '));
   const embeddings = await getEmbeddings(withoutNewlines);
+
   const vectors = embeddings.map((embedding, i) => ({
     id: nanoid(),
     values: embedding,
     metadata: {
-      path: path,
+      path: filePath,
       text: blocks[i]
     }
   }));
@@ -41,59 +41,69 @@ async function createAndSaveEmbeddings(blocks, path, namespace) {
 }
 
 // Docs can be checked out here https://github.com/vaadin/docs/tree/hilla/articles
-async function processAdoc(file, path) {
-  console.log(`Processing ${path}`);
+async function processAdoc(file, filePath, namespace) {
+  // Extract the namespace (framework) from the filePath
+  namespace += filePath.includes('articles/react') ? '-react' : filePath.includes('articles/lit') ? '-lit' : '';
+  if(namespace === 'hilla') return; // don't include the 404 and index page in the root
+  console.log(`Processing ${filePath} in namespace "${namespace}"...`);
 
   const frontMatterRegex = /^---[\s\S]+?---\n*/;
 
-  // Extract the namespace (framework) from the path
-  const namespace = path.includes('articles/react') ? 'react' : path.includes('articles/lit') ? 'lit' : '';
-  if (!namespace) return;
-
   // Remove front matter. The JS version of asciidoctor doesn't support removing it.
-  const noFrontMatter = file.replace(frontMatterRegex, '');
+  let content = file.replace(frontMatterRegex, '');
+
+  // Remove typescript source blocks from flow components docs
+  if(namespace === 'flow') {
+    content = content.replace(/\[source,\s?typescript\]\n----[\s\S]*?----/gs, '');
+  }
 
   // Run through asciidoctor to get includes
-  const html = asciidoctor.convert(noFrontMatter, {
+  const html = asciidoctor.convert(content, {
     attributes: {
       root: process.env.DOCS_ROOT,
       articles: process.env.DOCS_ARTICLES,
-      react: namespace === 'react',
-      lit: namespace === 'lit'
+      react: namespace === 'hilla-react',
+      lit: namespace === 'hilla-lit',
+      flow: namespace === 'flow'
     },
     safe: 'unsafe',
-    base_dir: process.env.DOCS_ARTICLES
+    base_dir: path.dirname(filePath)
   });
 
-  // Extract sections
-  const dom = new JSDOM(html);
-  const sections = dom.window.document.querySelectorAll('.sect1');
-
-  // Convert section html to plain text to save on tokens
-  const plainText = Array.from(sections).map(section => convert(section.innerHTML));
-
-  // Split section content further if needed, filter out short blocks
-  const docs = await splitter.createDocuments(plainText);
+  // Split content, filter out short blocks
+  const docs = await splitter.createDocuments([convert(html)]);
   const blocks = docs.map(doc => doc.pageContent)
-    .filter(block => block.length > 200);
+    .filter(block => block.length > 100);
 
-  await createAndSaveEmbeddings(blocks, path, namespace);
+  // DEBUG:
+  // console.log(blocks.join('\n\n---\n\n'));
+
+  if(blocks.length === 0) {
+    // No sections, no document, bail out
+    console.log(`No sections for ${filePath}`)
+    console.log(file);
+    return;
+  }
+
+  await createAndSaveEmbeddings(blocks, filePath, namespace);
 }
 
 // create analysis.json by running `npm run analyze` in
 // https://github.com/vaadin/web-components
-async function processElementDocs(file, path) {
+async function processElementDocs(file, path, namespace) {
   if(!path.includes('analysis.json')) return;
-  console.log(`Processing ${path}`);
+  namespace += '-lit'; // we only have this for lit
+  console.log(`Processing ${path} in namespace "${namespace}"...`);
+
   const json = JSON.parse(file);
   const descriptions = json.elements.map(element => element.description);
   const docs = await splitter.createDocuments(descriptions);
   const blocks = docs.map(doc => doc.pageContent);
 
-  await createAndSaveEmbeddings(blocks, path, 'lit');
+  await createAndSaveEmbeddings(blocks, path, namespace);
 }
 
-async function processPath(inputPath) {
+async function processPath(inputPath, namespace) {
   try {
     const stats = await fs.stat(inputPath);
 
@@ -102,14 +112,15 @@ async function processPath(inputPath) {
 
       for (const file of files) {
         const fullPath = path.join(inputPath, file);
-        await processPath(fullPath);
+        await processPath(fullPath, namespace);
       }
     } else if (stats.isFile()) {
+      if (path.basename(inputPath).startsWith('_')) return;
       const data = await fs.readFile(inputPath, 'utf8');
       if (['.adoc', '.asciidoc'].includes(path.extname(inputPath))) {
-        await processAdoc(data, inputPath);
+        await processAdoc(data, inputPath, namespace);
       } else if (path.extname(inputPath) === '.json') {
-        await processElementDocs(data, inputPath);
+        await processElementDocs(data, inputPath, namespace);
       }
     }
   } catch (err) {
@@ -117,13 +128,14 @@ async function processPath(inputPath) {
   }
 }
 
-async function processDocs(directories) {
+async function processDocs(directories, namespace){
   console.log('Processing docs...');
-  await Promise.all(directories.map(processPath));
+  await Promise.all(directories.map(directory => processPath(directory, namespace)));
   console.log('Done.');
 }
 
-await processDocs([
-  process.env.DOCS_ARTICLES,
-  process.env.COMPONENT_DOCS
-]);
+// Uses hilla branch of docs repo
+await processDocs([process.env.DOCS_ARTICLES, process.env.COMPONENT_DOCS], 'hilla');
+
+// Uses latest branch of docs repo
+// await processDocs([process.env.DOCS_ARTICLES], 'flow');
