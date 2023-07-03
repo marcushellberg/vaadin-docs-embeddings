@@ -17,28 +17,6 @@ const pinecone = await getOrCreatePineconeIndex();
 
 const asciidoctor = new Processor();
 
-async function createAndSaveEmbeddings(blocks, filePath, namespace) {
-  // OpenAI suggests removing newlines for better performance when creating embeddings.
-  // Don't remove them from the source.
-  const withoutNewlines = blocks.map(block => block.replace(/\n/g, ' '));
-  const embeddings = await getEmbeddings(withoutNewlines);
-
-  const vectors = embeddings.map((embedding, i) => ({
-    id: nanoid(),
-    values: embedding,
-    metadata: {
-      path: filePath,
-      text: blocks[i]
-    }
-  }));
-
-  await pinecone.upsert({
-    upsertRequest: {
-      vectors,
-      namespace
-    }
-  });
-}
 
 // Docs can be checked out here https://github.com/vaadin/docs/tree/hilla/articles
 async function processAdoc(file, filePath, namespace) {
@@ -86,6 +64,29 @@ async function processAdoc(file, filePath, namespace) {
   }
 
   await createAndSaveEmbeddings(blocks, filePath, namespace);
+}
+
+async function createAndSaveEmbeddings(blocks, filePath, namespace) {
+  // OpenAI suggests removing newlines for better performance when creating embeddings.
+  // Don't remove them from the source.
+  const withoutNewlines = blocks.map(block => block.replace(/\n/g, ' '));
+  const embeddings = await getEmbeddings(withoutNewlines);
+
+  const vectors = embeddings.map((embedding, i) => ({
+    id: nanoid(),
+    values: embedding,
+    metadata: {
+      path: filePath,
+      text: blocks[i]
+    }
+  }));
+
+  await pinecone.upsert({
+    upsertRequest: {
+      vectors,
+      namespace
+    }
+  });
 }
 
 // create analysis.json by running `npm run analyze` in
